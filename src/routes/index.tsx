@@ -138,7 +138,7 @@ function MenuPublico() {
             return (
               <section
                 key={c.id}
-                ref={(el) => {
+                ref={(el: HTMLElement | null) => {
                   sectionRefs.current[c.id] = el;
                 }}
                 className="pt-8"
