@@ -19,7 +19,7 @@ function MenuPublico() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     (async () => {
