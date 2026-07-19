@@ -24,7 +24,8 @@ function MenuPublico() {
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
-    (async () => {
+    // Carga inicial
+    const fetchData = async () => {
       const [cats, its] = await Promise.all([
         supabase
           .from("categorias")
@@ -37,7 +38,55 @@ function MenuPublico() {
       if (its.data) setItens(its.data as Item[]);
       if (cats.data && cats.data.length) setActiveCat((cats.data[0] as Categoria).id);
       setLoading(false);
-    })();
+    };
+
+    fetchData();
+
+    // Realtime — qualquer alteração feita no admin reflete aqui instantaneamente
+    const channel = supabase
+      .channel("menu-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "itens" },
+        (payload) => {
+          if (payload.eventType === "UPDATE") {
+            setItens((prev) =>
+              prev.map((item) =>
+                item.id === (payload.new as Item).id ? (payload.new as Item) : item
+              )
+            );
+            // Fechar o modal de detalhe se o item aberto foi alterado
+            setSelectedItem((sel) =>
+              sel && sel.id === (payload.new as Item).id ? (payload.new as Item) : sel
+            );
+          } else if (payload.eventType === "INSERT") {
+            setItens((prev) => [...prev, payload.new as Item]);
+          } else if (payload.eventType === "DELETE") {
+            setItens((prev) => prev.filter((item) => item.id !== (payload.old as Item).id));
+            setSelectedItem((sel) =>
+              sel && sel.id === (payload.old as Item).id ? null : sel
+            );
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "categorias" },
+        async () => {
+          // Para categorias, buscamos de novo (mais simples e seguro)
+          const { data } = await supabase
+            .from("categorias")
+            .select("*")
+            .eq("esta_ativa", true)
+            .order("ordem", { ascending: true });
+          if (data) setCategorias(data as Categoria[]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredItens = useMemo(() => {

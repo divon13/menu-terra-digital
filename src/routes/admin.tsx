@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
-import { Leaf, LogOut, Plus, Pencil, Trash2, Loader2, ExternalLink, ImagePlus } from "lucide-react";
+import { Leaf, LogOut, Plus, Pencil, Trash2, Loader2, ExternalLink, ImagePlus, QrCode, Download, LayoutGrid, UtensilsCrossed, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import imageCompression from "browser-image-compression";
 import { supabase, formatKwanza, type Categoria, type Item } from "@/lib/supabase";
@@ -30,23 +30,187 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
+function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const menuUrl = typeof window !== "undefined" ? `${window.location.origin}/` : "";
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=20&color=064e3b&bgcolor=f0fdf4&data=${encodeURIComponent(menuUrl)}`;
+  const qrDownload = `https://api.qrserver.com/v1/create-qr-code/?size=1200x1200&margin=40&color=064e3b&bgcolor=ffffff&data=${encodeURIComponent(menuUrl)}`;
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(qrDownload);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "menuterra-qrcode.png";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("QR Code descarregado!");
+    } catch {
+      toast.error("Erro ao descarregar o QR Code");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-emerald-600" />
+            QR Code do Menu
+          </DialogTitle>
+          <DialogDescription>
+            Aponta para o menu digital público. Imprime ou partilha para os teus clientes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-4 py-2">
+          <div className="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 shadow-sm">
+            <img
+              src={qrSrc}
+              alt="QR Code do menu"
+              width={280}
+              height={280}
+              className="rounded-xl block"
+            />
+          </div>
+          <p className="text-xs text-slate-400 text-center break-all">{menuUrl}</p>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-sm"
+          >
+            Fechar
+          </button>
+          <button
+            onClick={handleDownload}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition"
+          >
+            <Download className="w-4 h-4" />
+            Descarregar PNG
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Stats = {
+  totalCategorias: number;
+  totalItens: number;
+  itensAtivos: number;
+  itensEsgotados: number;
+};
+
+function StatsPanel({ stats }: { stats: Stats }) {
+  const cards = [
+    {
+      label: "Categorias",
+      value: stats.totalCategorias,
+      icon: LayoutGrid,
+      color: "text-violet-600",
+      bg: "bg-violet-50",
+      border: "border-violet-100",
+    },
+    {
+      label: "Pratos & Bebidas",
+      value: stats.totalItens,
+      icon: UtensilsCrossed,
+      color: "text-sky-600",
+      bg: "bg-sky-50",
+      border: "border-sky-100",
+    },
+    {
+      label: "Disponíveis",
+      value: stats.itensAtivos,
+      icon: CheckCircle2,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      border: "border-emerald-100",
+    },
+    {
+      label: "Esgotados",
+      value: stats.itensEsgotados,
+      icon: XCircle,
+      color: "text-rose-500",
+      bg: "bg-rose-50",
+      border: "border-rose-100",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      {cards.map(({ label, value, icon: Icon, color, bg, border }) => (
+        <div
+          key={label}
+          className={`flex items-center gap-3 p-4 rounded-2xl bg-white border ${border} shadow-[0_4px_20px_rgba(0,0,0,0.03)]`}
+        >
+          <div className={`shrink-0 w-10 h-10 rounded-xl ${bg} grid place-items-center`}>
+            <Icon className={`w-5 h-5 ${color}`} />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-900 leading-none">{value}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AdminPage() {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [stats, setStats] = useState<Stats>({
+    totalCategorias: 0,
+    totalItens: 0,
+    itensAtivos: 0,
+    itensEsgotados: 0,
+  });
+
+  const refreshStats = async () => {
+    const [cats, itens] = await Promise.all([
+      supabase.from("categorias").select("id", { count: "exact", head: true }),
+      supabase.from("itens").select("esta_disponivel"),
+    ]);
+    const total = itens.data?.length ?? 0;
+    const ativos = itens.data?.filter((i) => i.esta_disponivel).length ?? 0;
+    setStats({
+      totalCategorias: cats.count ?? 0,
+      totalItens: total,
+      itensAtivos: ativos,
+      itensEsgotados: total - ativos,
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       if (!data.session) navigate({ to: "/login" });
-      else setChecking(false);
+      else {
+        setChecking(false);
+        refreshStats();
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate({ to: "/login" });
     });
+
+    // Realtime para manter as estatísticas atualizadas
+    const statsChannel = supabase
+      .channel("admin-stats")
+      .on("postgres_changes", { event: "*", schema: "public", table: "itens" }, refreshStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, refreshStats)
+      .subscribe();
+
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      supabase.removeChannel(statsChannel);
     };
   }, [navigate]);
 
@@ -72,6 +236,14 @@ function AdminPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setQrOpen(true)}
+              className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl hover:bg-white transition"
+              title="Gerar QR Code do menu"
+            >
+              <QrCode className="w-4 h-4" />
+              QR Code
+            </button>
             <Link
               to="/"
               className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl hover:bg-white transition"
@@ -89,7 +261,10 @@ function AdminPage() {
               Sair
             </button>
           </div>
+          <QrCodeModal open={qrOpen} onClose={() => setQrOpen(false)} />
         </header>
+
+        <StatsPanel stats={stats} />
 
         <Tabs defaultValue="categorias" className="w-full">
           <TabsList className="bg-white/70 border border-slate-100 rounded-2xl p-1 h-auto">
@@ -108,10 +283,10 @@ function AdminPage() {
           </TabsList>
 
           <TabsContent value="categorias" className="mt-6">
-            <CategoriasPanel />
+            <CategoriasPanel onMutation={refreshStats} />
           </TabsContent>
           <TabsContent value="itens" className="mt-6">
-            <ItensPanel />
+            <ItensPanel onMutation={refreshStats} />
           </TabsContent>
         </Tabs>
       </div>
@@ -121,7 +296,7 @@ function AdminPage() {
 
 // ------------------- CATEGORIAS -------------------
 
-function CategoriasPanel() {
+function CategoriasPanel({ onMutation }: { onMutation?: () => void }) {
   const [cats, setCats] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Categoria | null>(null);
@@ -153,6 +328,8 @@ function CategoriasPanel() {
     if (error) {
       toast.error("Erro ao atualizar", { description: error.message });
       load();
+    } else {
+      onMutation?.();
     }
   };
 
@@ -163,6 +340,7 @@ function CategoriasPanel() {
     else {
       toast.success("Categoria removida");
       load();
+      onMutation?.();
     }
     setDeleting(null);
   };
@@ -231,6 +409,7 @@ function CategoriasPanel() {
             setCreating(false);
             setEditing(null);
             load();
+            onMutation?.();
           }}
         />
       )}
@@ -363,7 +542,7 @@ function CategoriaDialog({
 
 // ------------------- ITENS -------------------
 
-function ItensPanel() {
+function ItensPanel({ onMutation }: { onMutation?: () => void }) {
   const [itens, setItens] = useState<Item[]>([]);
   const [cats, setCats] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +577,8 @@ function ItensPanel() {
     if (error) {
       toast.error("Erro ao atualizar", { description: error.message });
       load();
+    } else {
+      onMutation?.();
     }
   };
 
@@ -414,6 +595,7 @@ function ItensPanel() {
     else {
       toast.success("Prato removido");
       load();
+      onMutation?.();
     }
     setDeleting(null);
   };
@@ -539,6 +721,7 @@ function ItensPanel() {
             setCreating(false);
             setEditing(null);
             load();
+            onMutation?.();
           }}
         />
       )}
