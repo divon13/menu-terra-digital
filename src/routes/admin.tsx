@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Leaf, LogOut, Plus, Pencil, Trash2, Loader2, ExternalLink, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import imageCompression from "browser-image-compression";
-import { supabase, formatEUR, type Categoria, type Item } from "@/lib/supabase";
+import { supabase, formatKwanza, type Categoria, type Item } from "@/lib/supabase";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -171,7 +171,7 @@ function CategoriasPanel() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <p className="text-sm text-slate-500">
-          {cats.length} {cats.length === 1 ? "categoria" : "categorias"}
+          {cats.length === 1 ? "1 categoria" : `${cats.length} categorias`}
         </p>
         <button
           onClick={() => setCreating(true)}
@@ -222,6 +222,7 @@ function CategoriasPanel() {
       {(creating || editing) && (
         <CategoriaDialog
           categoria={editing}
+          existingCategorias={cats}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -259,15 +260,20 @@ function CategoriasPanel() {
 
 function CategoriaDialog({
   categoria,
+  existingCategorias,
   onClose,
   onSaved,
 }: {
   categoria: Categoria | null;
+  existingCategorias: Categoria[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [nome, setNome] = useState(categoria?.nome ?? "");
-  const [ordem, setOrdem] = useState<number>(categoria?.ordem ?? 0);
+  const [ordem, setOrdem] = useState<number>(
+    categoria?.ordem ?? 
+    (existingCategorias.reduce((max, c) => (c.ordem > max ? c.ordem : max), 0) + 1)
+  );
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -275,6 +281,17 @@ function CategoriaDialog({
       toast.error("Nome obrigatório");
       return;
     }
+    
+    // Validar se a ordem (posição) já está ocupada por outra categoria
+    const isOrderTaken = existingCategorias.some(
+      (c) => c.ordem === ordem && c.id !== categoria?.id
+    );
+    if (isOrderTaken) {
+      const takenByName = existingCategorias.find((c) => c.ordem === ordem)?.nome;
+      toast.error(`A posição ${ordem} já está ocupada pela categoria "${takenByName}".`);
+      return;
+    }
+
     setSaving(true);
     let error;
     if (categoria) {
@@ -480,7 +497,7 @@ function ItensPanel() {
                     <p className="font-semibold text-slate-900 truncate">{it.nome}</p>
                   </div>
                   <p className="text-xs text-slate-500 truncate">
-                    {cat?.nome ?? "—"} · {formatEUR(it.preco)}
+                    {`${cat?.nome ?? "—"} · ${formatKwanza(it.preco)}`}
                   </p>
                 </div>
                 <Switch
@@ -691,7 +708,7 @@ function ItemDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-slate-700">Preço (EUR)</label>
+              <label className="text-sm font-medium text-slate-700">Preço (AOA)</label>
               <input
                 inputMode="decimal"
                 value={preco}

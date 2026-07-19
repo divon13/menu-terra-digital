@@ -28,7 +28,7 @@ export type Item = {
   esta_disponivel: boolean;
 };
 
-export const formatEUR = (value: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(
+export const formatKwanza = (value: number) =>
+  new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA" }).format(
     Number(value ?? 0),
   );
