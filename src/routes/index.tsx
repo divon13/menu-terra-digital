@@ -19,6 +19,7 @@ function MenuPublico() {
   const [itens, setItens] = useState<Item[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -26,18 +27,27 @@ function MenuPublico() {
   useEffect(() => {
     // Carga inicial
     const fetchData = async () => {
-      const [cats, its] = await Promise.all([
-        supabase
-          .from("categorias")
-          .select("*")
-          .eq("esta_ativa", true)
-          .order("ordem", { ascending: true }),
-        supabase.from("itens").select("*"),
-      ]);
-      if (cats.data) setCategorias(cats.data as Categoria[]);
-      if (its.data) setItens(its.data as Item[]);
-      if (cats.data && cats.data.length) setActiveCat((cats.data[0] as Categoria).id);
-      setLoading(false);
+      setFetchError(null);
+      try {
+        const [cats, its] = await Promise.all([
+          supabase
+            .from("categorias")
+            .select("*")
+            .eq("esta_ativa", true)
+            .order("ordem", { ascending: true }),
+          supabase.from("itens").select("*"),
+        ]);
+        if (cats.error) throw new Error(cats.error.message);
+        if (its.error) throw new Error(its.error.message);
+        if (cats.data) setCategorias(cats.data as Categoria[]);
+        if (its.data) setItens(its.data as Item[]);
+        if (cats.data && cats.data.length) setActiveCat((cats.data[0] as Categoria).id);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Erro de ligação";
+        setFetchError(msg);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -167,7 +177,25 @@ function MenuPublico() {
       </div>
 
       <main className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-24 pt-4">
-        {loading ? (
+        {fetchError ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 grid place-items-center">
+              <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-700">Não foi possível carregar o menu</p>
+              <p className="text-sm text-slate-400 mt-1">{fetchError}</p>
+            </div>
+            <button
+              onClick={() => { setLoading(true); setFetchError(null); }}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : loading ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div
@@ -215,7 +243,7 @@ function MenuPublico() {
           })
         )}
 
-        {!loading && filteredItens.length === 0 && query.trim() && (
+        {!loading && !fetchError && filteredItens.length === 0 && query.trim() && (
           <div className="text-center py-16 text-slate-500">
             Nenhum prato encontrado para "{query}".
           </div>

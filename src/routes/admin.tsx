@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Leaf, LogOut, Plus, Pencil, Trash2, Loader2, ExternalLink, ImagePlus, QrCode, Download, LayoutGrid, UtensilsCrossed, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import imageCompression from "browser-image-compression";
 import { supabase, formatKwanza, type Categoria, type Item } from "@/lib/supabase";
+import { QRCodeCanvas } from "qrcode.react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -32,23 +33,83 @@ export const Route = createFileRoute("/admin")({
 
 function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const menuUrl = typeof window !== "undefined" ? `${window.location.origin}/` : "";
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=20&color=064e3b&bgcolor=f0fdf4&data=${encodeURIComponent(menuUrl)}`;
-  const qrDownload = `https://api.qrserver.com/v1/create-qr-code/?size=1200x1200&margin=40&color=064e3b&bgcolor=ffffff&data=${encodeURIComponent(menuUrl)}`;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleDownload = async () => {
-    try {
-      const res = await fetch(qrDownload);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "menuterra-qrcode.png";
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("QR Code descarregado!");
-    } catch {
-      toast.error("Erro ao descarregar o QR Code");
-    }
+  const handleDownload = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const width = 1200;
+    const height = 1350;
+    const offscreen = document.createElement("canvas");
+    offscreen.width = width;
+    offscreen.height = height;
+    const ctx = offscreen.getContext("2d");
+    if (!ctx) return;
+
+    // 1. Full canvas background
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. White Card Container with rounded corners
+    const cardX = 50;
+    const cardY = 50;
+    const cardW = 1100;
+    const cardH = 1250;
+    const cardR = 40;
+
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.stroke();
+
+    // 3. Header Title ("MenuTerra")
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#064e3b";
+    ctx.font = "bold 60px system-ui, -apple-system, sans-serif";
+    ctx.fillText("MenuTerra", width / 2, 150);
+
+    // 4. QR Code background container
+    const qrBgX = 200;
+    const qrBgY = 210;
+    const qrBgSize = 800;
+    const qrBgR = 32;
+
+    ctx.beginPath();
+    ctx.roundRect(qrBgX, qrBgY, qrBgSize, qrBgSize, qrBgR);
+    ctx.fillStyle = "#f0fdf4";
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#dcfce7";
+    ctx.stroke();
+
+    // 5. Draw QR Code in center of container
+    const qrSize = 700;
+    const qrX = qrBgX + (qrBgSize - qrSize) / 2;
+    const qrY = qrBgY + (qrBgSize - qrSize) / 2;
+    ctx.drawImage(canvas, qrX, qrY, qrSize, qrSize);
+
+    // 6. Bottom Instruction Text requested by user
+    ctx.fillStyle = "#064e3b";
+    ctx.font = "bold 34px system-ui, -apple-system, sans-serif";
+    ctx.fillText("Aponte a câmera do seu telefone para ver o menu", width / 2, 1085);
+
+    // 7. Menu URL link footer
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 24px system-ui, -apple-system, sans-serif";
+    ctx.fillText(menuUrl, width / 2, 1150);
+
+    // 8. Download trigger
+    const url = offscreen.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "menuterra-qrcode.png";
+    a.click();
+    toast.success("QR Code descarregado!");
   };
 
   return (
@@ -65,14 +126,20 @@ function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-2">
-          <div className="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 shadow-sm">
-            <img
-              src={qrSrc}
-              alt="QR Code do menu"
-              width={280}
-              height={280}
-              className="rounded-xl block"
+          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm flex flex-col items-center gap-3">
+            <QRCodeCanvas
+              ref={canvasRef}
+              value={menuUrl || window.location.origin}
+              size={260}
+              fgColor="#064e3b"
+              bgColor="#f0fdf4"
+              level="M"
+              marginSize={2}
+              style={{ borderRadius: "12px", display: "block" }}
             />
+            <p className="text-xs font-medium text-emerald-800 text-center max-w-[260px] leading-snug">
+              Aponte a câmera do seu telefone para ver o menu
+            </p>
           </div>
           <p className="text-xs text-slate-400 text-center break-all">{menuUrl}</p>
         </div>
@@ -171,20 +238,33 @@ function AdminPage() {
     itensEsgotados: 0,
   });
 
-  const refreshStats = async () => {
-    const [cats, itens] = await Promise.all([
-      supabase.from("categorias").select("id", { count: "exact", head: true }),
-      supabase.from("itens").select("esta_disponivel"),
-    ]);
-    const total = itens.data?.length ?? 0;
-    const ativos = itens.data?.filter((i) => i.esta_disponivel).length ?? 0;
-    setStats({
-      totalCategorias: cats.count ?? 0,
-      totalItens: total,
-      itensAtivos: ativos,
-      itensEsgotados: total - ativos,
-    });
-  };
+  const refreshStats = useCallback(async () => {
+    try {
+      const [cats, itens] = await Promise.all([
+        supabase.from("categorias").select("id", { count: "exact", head: true }),
+        supabase.from("itens").select("esta_disponivel"),
+      ]);
+      const total = itens.data?.length ?? 0;
+      const ativos = itens.data?.filter((i) => i.esta_disponivel).length ?? 0;
+      setStats({
+        totalCategorias: cats.count ?? 0,
+        totalItens: total,
+        itensAtivos: ativos,
+        itensEsgotados: total - ativos,
+      });
+    } catch {
+      // Stats update failed silently — not critical
+    }
+  }, []);
+
+  // Debounced version: batches rapid Realtime events into a single query
+  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefreshStats = useCallback(() => {
+    if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+    refreshDebounceRef.current = setTimeout(() => {
+      refreshStats();
+    }, 500);
+  }, [refreshStats]);
 
   useEffect(() => {
     let mounted = true;
@@ -200,19 +280,20 @@ function AdminPage() {
       if (!session) navigate({ to: "/login" });
     });
 
-    // Realtime para manter as estatísticas atualizadas
+    // Realtime para manter as estatísticas atualizadas (debounced)
     const statsChannel = supabase
       .channel("admin-stats")
-      .on("postgres_changes", { event: "*", schema: "public", table: "itens" }, refreshStats)
-      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, refreshStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "itens" }, debouncedRefreshStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, debouncedRefreshStats)
       .subscribe();
 
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
       supabase.removeChannel(statsChannel);
+      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
     };
-  }, [navigate]);
+  }, [navigate, refreshStats, debouncedRefreshStats]);
 
   if (checking) {
     return (
@@ -766,7 +847,16 @@ function ItemDialog({
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const MAX_FILE_SIZE_MB = 5;
+
   const handleFile = async (file: File) => {
+    // Validate file size before attempting to process/upload
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      toast.error(`Ficheiro demasiado grande`, {
+        description: `Máximo permitido: ${MAX_FILE_SIZE_MB}MB. O teu ficheiro tem ${(file.size / 1024 / 1024).toFixed(1)}MB.`,
+      });
+      return;
+    }
     setUploading(true);
     try {
       const compressed = await imageCompression(file, {
