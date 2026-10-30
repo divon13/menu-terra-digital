@@ -35,7 +35,7 @@ function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   const menuUrl = typeof window !== "undefined" ? `${window.location.origin}/` : "";
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -66,12 +66,35 @@ function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     ctx.strokeStyle = "#e2e8f0";
     ctx.stroke();
 
-    // 3. Header Title ("MenuTerra")
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#064e3b";
-    ctx.font = "bold 60px system-ui, -apple-system, sans-serif";
-    ctx.fillText("MenuTerra", width / 2, 150);
+    // 3. Header Logo / Branding
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = "anonymous";
+      logoImg.src = "/logo.png";
+      await new Promise<void>((resolve) => {
+        if (logoImg.complete && logoImg.naturalWidth > 0) return resolve();
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => resolve();
+      });
+
+      if (logoImg.naturalWidth > 0) {
+        const logoTargetH = 105;
+        const logoTargetW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoTargetH;
+        ctx.drawImage(logoImg, (width - logoTargetW) / 2, 85, logoTargetW, logoTargetH);
+      } else {
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#064e3b";
+        ctx.font = "bold 56px system-ui, -apple-system, sans-serif";
+        ctx.fillText("ISAF Refeitório", width / 2, 140);
+      }
+    } catch {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#064e3b";
+      ctx.font = "bold 56px system-ui, -apple-system, sans-serif";
+      ctx.fillText("ISAF Refeitório", width / 2, 140);
+    }
 
     // 4. QR Code background container
     const qrBgX = 200;
@@ -94,6 +117,8 @@ function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     ctx.drawImage(canvas, qrX, qrY, qrSize, qrSize);
 
     // 6. Bottom Instruction Text requested by user
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillStyle = "#064e3b";
     ctx.font = "bold 34px system-ui, -apple-system, sans-serif";
     ctx.fillText("Aponte a câmera do seu telefone para ver o menu", width / 2, 1085);
@@ -107,7 +132,7 @@ function QrCodeModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     const url = offscreen.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url;
-    a.download = "menuterra-qrcode.png";
+    a.download = "isaf-refeitorio-qrcode.png";
     a.click();
     toast.success("QR Code descarregado!");
   };
@@ -307,13 +332,17 @@ function AdminPage() {
     <div className="min-h-screen bg-gradient-to-b from-white via-[#F5F8F3] to-[#EBF0E5]">
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <header className="flex items-center justify-between pb-8 flex-wrap gap-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="grid place-items-center w-10 h-10 rounded-full bg-emerald-600 text-white shadow-sm shrink-0">
-              <Leaf className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl font-bold tracking-tight text-slate-900">MenuTerra</p>
-              <p className="text-xs text-slate-500">Painel de gestão</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" title="Ver menu público" className="block shrink-0">
+              <img
+                src="/logo.png"
+                alt="ISAF Refeitório"
+                className="h-11 sm:h-12 w-auto object-contain drop-shadow-sm hover:opacity-90 transition"
+              />
+            </Link>
+            <div className="hidden sm:block border-l border-slate-200 pl-3 min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">ISAF</p>
+              <p className="text-xs text-slate-500">Painel de Gestão</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

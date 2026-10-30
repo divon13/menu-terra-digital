@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Leaf, Loader2, ShieldAlert, Timer } from "lucide-react";
+import { Loader2, ShieldAlert, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -84,11 +84,12 @@ function LoginPage() {
   return (
     <div className="min-h-screen grid place-items-center bg-gradient-to-b from-white via-[#F5F8F3] to-[#EBF0E5] px-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="grid place-items-center w-11 h-11 rounded-full bg-emerald-600 text-white shadow-sm">
-            <Leaf className="w-5 h-5" />
-          </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-900">MenuTerra</span>
+        <div className="flex items-center justify-center mb-8">
+          <img
+            src="/logo.png"
+            alt="ISAF Refeitório"
+            className="h-16 sm:h-20 w-auto object-contain drop-shadow-sm"
+          />
         </div>
         <div className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-slate-100 p-8">
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Aceder ao painel</h1>

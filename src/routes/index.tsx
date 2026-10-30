@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MenuTerra — Menu Digital" },
-      { name: "description", content: "Descubra o nosso menu fresco e sazonal." },
+      { title: "ISAF Refeitório — Menu Digital" },
+      { name: "description", content: "Descubra o nosso menu diário e refeições frescas no ISAF Refeitório." },
     ],
   }),
   component: MenuPublico,
@@ -118,14 +118,13 @@ function MenuPublico() {
     <div className="min-h-screen bg-gradient-to-b from-white via-[#F5F8F3] to-[#EBF0E5]">
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <header className="flex items-center justify-between pt-8 pb-6">
-          <div className="flex items-center gap-2">
-            <div className="grid place-items-center w-10 h-10 rounded-full bg-emerald-600 text-white shadow-sm">
-              <Leaf className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              MenuTerra
-            </span>
+        <header className="flex items-center justify-between pt-7 pb-6">
+          <div className="flex items-center">
+            <img
+              src="/logo.png"
+              alt="ISAF Refeitório"
+              className="h-14 sm:h-16 w-auto object-contain drop-shadow-sm"
+            />
           </div>
         </header>
 
